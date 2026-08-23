@@ -49,13 +49,11 @@ Most Terraform pipelines validate syntax (`terraform validate`) but don't enforc
 
 ## Environments
 
-Three isolated environments, each with different deployment gates:
+This platform is built and run primarily in **`dev`** — real Terraform, real policies, real Grafana dashboard, real Cloud Monitoring, all live against actual GCP resources. Keeping this to one live environment avoids running 3x the infrastructure (and 3x the cost) for a portfolio-scale project.
 
-| Environment | Gate |
-|---|---|
-| `dev` | No approval required — auto-deploys on push |
-| `staging` | Wait timer before deploy |
-| `prod` | Manual reviewer approval required |
+The Terraform config is still **environment-aware** (`environment` variable, e.g. `dev`/`staging`/`prod`) so the same code could be pointed at additional environments later without a rewrite — but only `dev` runs live infrastructure for now.
+
+The full multi-environment CI/CD *pipeline pattern* (staged approvals, wait timers, matrix builds across dev/staging/prod) is separately proven out in the companion repo: [GithubProjects-VM-](https://github.com/VurumuMahesh15/GithubProjects-VM-).
 
 ---
 
