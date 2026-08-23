@@ -1,20 +1,102 @@
-# Hi, I'm VM (Vurumu Mahesh) 👋
+# Policy-as-Code Enforcement & Observability Platform
 
-Final-year engineering student (2026 batch), focused on **Platform Engineering** and **SRE**, currently prepping for campus placements at Adobe, PayPal, Visa, Mastercard, Deloitte, IBM, and Genpact.
+A GCP-native platform that enforces infrastructure policy automatically — catching non-compliant Terraform changes before they're applied, and giving visibility into infrastructure state and policy violations through a live observability layer.
 
-## What I'm building
-Currently building a **Policy-as-Code Enforcement & Observability Platform** on GCP — Terraform, OPA/Rego, Conftest, tfsec, Cloud Monitoring/Logging, and Grafana, all wired together with GitHub Actions CI/CD and Kubernetes.
+Built by **Vurumu Mahesh (VM)** — Platform Engineering / SRE portfolio project.
 
-## Tech I work with
-**Infra & Cloud:** GCP · Terraform · Docker · Kubernetes · GitHub Actions · Cloud Monitoring/Logging
-**Policy & Security:** OPA/Rego · Conftest · tfsec
-**Languages:** Python · Bash · C
-**Database:** SQL · Redis
+---
 
-## Experience
-**Software Engineer Intern — Divami Design Labs** (May–June 2026)
-Built AI-NIMS, a PWA for NIMS Hyderabad's Cardiothoracic Surgery department — React/TypeScript frontend, FastAPI/Python backend with Gemini API integration and Pydantic AI.
+## What this does
 
-## Reach me
+Every infrastructure change goes through automated policy checks before it's allowed to touch real GCP resources. On top of that, the platform observes what's actually running, so drift and violations are visible in real time, not just caught at commit time.
+
+```
+Terraform code pushed
+        ↓
+CI validates + applies (multi-environment: dev/staging/prod)
+        ↓
+OPA/Rego policies (via Conftest) check the plan for violations
+        ↓
+tfsec scans for security misconfigurations
+        ↓
+If compliant → infrastructure is provisioned on GCP
+        ↓
+Cloud Monitoring + Cloud Logging + Grafana observe it continuously
+```
+
+---
+
+## Why this exists
+
+Most Terraform pipelines validate syntax (`terraform validate`) but don't enforce *organizational rules* — things like "no public storage buckets," "only approved instance types," "every resource must have an owner tag." This platform closes that gap: policy is written as code, versioned, tested, and enforced automatically, not left to manual review or tribal knowledge.
+
+---
+
+## Tech stack
+
+| Layer | Tool | Purpose |
+|---|---|---|
+| **Infrastructure as Code** | Terraform | Defines and provisions GCP resources |
+| **Policy engine** | OPA (Open Policy Agent) + Rego | Encodes the actual compliance rules |
+| **Policy test runner** | Conftest | Runs Rego policies against Terraform plan output |
+| **Security scanning** | tfsec | Catches security misconfigurations in Terraform code |
+| **CI/CD** | GitHub Actions | Automates validate → policy check → apply, across environments |
+| **Container orchestration** | Kubernetes (GKE) | Runs policy checks in isolated, reproducible Jobs |
+| **Observability** | Cloud Monitoring, Cloud Logging, Grafana | Tracks infrastructure state, policy violations, and drift |
+| **Cloud provider** | Google Cloud Platform | Where the actual infrastructure lives |
+
+---
+
+## Environments
+
+Three isolated environments, each with different deployment gates:
+
+| Environment | Gate |
+|---|---|
+| `dev` | No approval required — auto-deploys on push |
+| `staging` | Wait timer before deploy |
+| `prod` | Manual reviewer approval required |
+
+---
+
+## Project status
+
+🚧 **In active development** — build started August 21, 2026.
+
+**Completed so far:**
+- [x] GCP project provisioned (`policy-as-code-platform`)
+- [x] Required APIs enabled (Compute, GKE, Monitoring, Logging, IAM, Resource Manager)
+- [x] Terraform service account created with scoped IAM role
+- [x] Budget alert configured on free trial credit
+- [x] Core CI/CD mechanism proven — Kubernetes Job running Conftest/OPA policy checks against real Terraform inside a disposable cluster spun up in GitHub Actions
+
+**In progress / planned:**
+- [ ] Real GCP infrastructure defined in Terraform
+- [ ] Meaningful Rego policy set (beyond initial proof-of-concept policies)
+- [ ] tfsec integrated into the pipeline
+- [ ] Cloud Monitoring + Cloud Logging wired up
+- [ ] Grafana dashboard deployed and connected
+- [ ] (Later phase, ~1 month out) RAG-based natural-language interface over policy violations and logs, using Ollama + local embeddings
+
+---
+
+## Architecture decisions
+
+- **GitHub Actions over Cloud Build** — keeps CI/CD in one familiar, portable system
+- **tfsec over Checkov** — chosen for this project's security scanning
+- **GCP-native Cloud Monitoring as Grafana's data source** — over self-hosting Prometheus, reducing operational overhead
+- **Kubernetes Jobs for policy checks** — proves the enforcement mechanism works as a real cluster workload, not just a CI script, closer to how this would run in production
+
+---
+
+## Related project
+
+This platform's CI/CD and policy-enforcement mechanics were first prototyped and debugged in a standalone practice repo: [GithubProjects-VM-](https://github.com/VurumuMahesh15/GithubProjects-VM-), under `ci-cd-k8s-policy-pipeline/`.
+
+---
+
+## Contact
+
+**Vurumu Mahesh (VM)**
 📧 [vgsvpmahesh@gmail.com](mailto:vgsvpmahesh@gmail.com)
-🔗 [GitHub](https://github.com/VurumuMahesh15)
+🔗 [GitHub](https://github.com/VurumuMahesh15) · [LinkedIn](https://www.linkedin.com/in/vurumu-mahesh-ba572a293/)
