@@ -1,0 +1,55 @@
+version: "3"
+
+env:
+  TF_DIR: terraform
+
+vars:
+  environment: dev
+
+tasks:
+  default:
+    desc: List all available tasks
+    cmds:
+      - task --list-all
+
+  tf:fmt:
+    desc: Format all Terraform files
+    cmds:
+      - terraform -chdir={{.TF_DIR}} fmt
+
+  tf:init:
+    desc: Initialize the Terraform working directory
+    cmds:
+      - terraform -chdir={{.TF_DIR}} init
+
+  tf:validate:
+    desc: Validate the Terraform configuration
+    deps:
+      - tf:init
+    cmds:
+      - terraform -chdir={{.TF_DIR}} validate
+
+  tf:plan:
+    desc: Generate a plan (set environment with environment=staging)
+    cmds:
+      - terraform -chdir={{.TF_DIR}} plan -var environment={{.environment}}
+
+  tf:apply:
+    desc: Apply the Terraform configuration (set environment with environment=staging)
+    cmds:
+      - terraform -chdir={{.TF_DIR}} apply -auto-approve -var environment={{.environment}}
+
+  tf:output:
+    desc: Show the Terraform outputs as JSON
+    cmds:
+      - terraform -chdir={{.TF_DIR}} output -json
+
+  kind:create:
+    desc: Create a local kind cluster
+    cmds:
+      - kind create cluster
+
+  kind:delete:
+    desc: Delete the local kind cluster
+    cmds:
+      - kind delete cluster

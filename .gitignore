@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# devbox
+.devbox/
+
+# Go build output (devbox init_hook: go install cloud-provider-kind)
+bin/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+
+# Local files created by the workflow
+ci-cd-k8s-policy-pipeline/terraform/deployment-record-*.txt
+ci-cd-k8s-policy-pipeline/terraform/tf-output-*.json
+configmap.yaml
+daemonset.yaml
+pod-with-configmap.yaml
+statefulset.yaml
+terraform-check-job.yaml
+opa_practice/
+terraform-key.json

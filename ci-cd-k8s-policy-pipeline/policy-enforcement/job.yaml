@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tf-check
+  namespace: dev
+spec:
+  template:
+    spec:
+      containers:
+        - name: policy-check
+          image: openpolicyagent/conftest:latest
+          workingDir: /workspace
+          command: ["sh", "-c", "conftest test ci-cd-k8s-policy-pipeline/terraform/*.tf --policy ci-cd-k8s-policy-pipeline/policy-enforcement/policies"]
+          volumeMounts:
+            - name: repo
+              mountPath: /workspace
+      restartPolicy: Never
+      volumes:
+        - name: repo
+          hostPath:
+            path: /workspace
+  backoffLimit: 2
