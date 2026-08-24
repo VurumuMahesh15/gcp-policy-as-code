@@ -69,12 +69,14 @@ The full multi-environment CI/CD *pipeline pattern* (staged approvals, wait time
 - [x] Core CI/CD mechanism proven — Kubernetes Job running Conftest/OPA policy checks against real Terraform inside a disposable cluster spun up in GitHub Actions
 
 **In progress / planned:**
-- [ ] Real GCP infrastructure defined in Terraform
+- [x] Real GCP infrastructure defined in Terraform
 - [ ] Meaningful Rego policy set (beyond initial proof-of-concept policies)
 - [ ] tfsec integrated into the pipeline
 - [ ] Cloud Monitoring + Cloud Logging wired up
 - [ ] Grafana dashboard deployed and connected
 - [ ] (Later phase, ~1 month out) RAG-based natural-language interface over policy violations and logs, using Ollama + local embeddings
+
+**Recent progress:** Kubernetes Job pipeline with Conftest/OPA policy checks against real Terraform is proven in GitHub Actions (August 2026).
 
 ---
 
