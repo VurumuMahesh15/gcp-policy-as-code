@@ -1,0 +1,18 @@
+{
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "google_container_cluster.primary",
+          "type": "google_container_cluster",
+          "values": {
+            "resource_labels": {
+              "environment": "production"
+            },
+            "deletion_protection": true
+          }
+        }
+      ]
+    }
+  }
+}

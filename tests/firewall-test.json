@@ -1,0 +1,17 @@
+{
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "google_compute_firewall.bad_rule",
+          "type": "google_compute_firewall",
+          "values": {
+            "source_ranges": [
+              "0.0.0.0/0"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

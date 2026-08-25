@@ -1,0 +1,18 @@
+{
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "google_container_cluster.primary",
+          "values": {
+            "labels": {
+              "environment": "dev",
+              "project": "policy-platform",
+              "managed_by": "terraform"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

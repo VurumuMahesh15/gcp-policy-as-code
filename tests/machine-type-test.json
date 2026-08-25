@@ -1,0 +1,17 @@
+{
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "google_container_node_pool.primary_nodes",
+          "type": "google_container_node_pool",
+          "values": {
+            "node_config": {
+              "machine_type": "e2-medium"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

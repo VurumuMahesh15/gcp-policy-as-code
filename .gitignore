@@ -1,5 +1,24 @@
-terraform-key.json
+# Terraform
 .terraform/
 *.tfstate
 *.tfstate.*
+crash.log
+crash.*.log
+
+# Credentials / secrets
+*.key
+*.pem
+terraform-key.json
+*-credentials.json
+service-account*.json
+credentials*.json
+
+# Terraform variables
 *.tfvars
+*.tfvars.json
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
