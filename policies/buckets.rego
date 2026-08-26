@@ -1,4 +1,4 @@
-package terraform.buckets
+package main
 
 public_members := {
     "allUsers",

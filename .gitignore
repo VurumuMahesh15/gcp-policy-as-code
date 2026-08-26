@@ -22,3 +22,7 @@ credentials*.json
 
 # VS Code
 .vscode/
+
+# Terraform plan files
+terraform/tfplan.binary
+policies/tfplan.json

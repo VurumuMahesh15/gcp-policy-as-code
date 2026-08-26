@@ -1,4 +1,4 @@
-package terraform.firewall
+package main
 
 deny contains msg if {
     resource := input.planned_values.root_module.resources[_]
