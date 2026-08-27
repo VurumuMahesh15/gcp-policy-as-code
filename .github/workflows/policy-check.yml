@@ -29,10 +29,14 @@ jobs:
           tar -xzf /tmp/conftest.tar.gz -C /tmp
           sudo mv /tmp/conftest /usr/local/bin/conftest
 
-      - name: Set up Trivy
+      - name: Trivy - Terraform misconfigurations
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           version: v0.74.0
+          scan-type: config
+          scan-ref: terraform/
+          severity: HIGH,CRITICAL
+          exit-code: "1"
 
       - name: Terraform fmt
         run: terraform -chdir=terraform fmt -check
@@ -61,6 +65,3 @@ jobs:
           terraform -chdir=terraform plan -out=tfplan.binary
           terraform -chdir=terraform show -json tfplan.binary > policies/tfplan.json
           conftest test policies/tfplan.json --policy policies/
-
-      - name: Trivy - Terraform misconfigurations
-        run: trivy config --exit-code 1 --severity HIGH,CRITICAL terraform/
