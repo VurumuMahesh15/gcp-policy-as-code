@@ -6,9 +6,28 @@ Built by **Vurumu Mahesh (VM)** — Platform Engineering / SRE portfolio project
 
 ---
 
-## What this does
+## Architecture
 
 Infrastructure changes can be checked against versioned policy before they touch real GCP resources. A planned observability layer will track what's running, so drift and violations can be visible in real time rather than only at commit time.
+
+```mermaid
+flowchart TB
+    A["Terraform code (gke.tf, iam.tf, provider.tf)"] --> B["GitHub Actions workflow"]
+    subgraph CI["GitHub Actions - policy-check.yml"]
+        B --> C["terraform fmt -check"]
+        C --> D["terraform init + validate"]
+        D --> E["opa check + opa test  (26/26)"]
+        E --> F["conftest test terraform/  (98 passed)"]
+        F --> G["terraform plan -> show -json -> tfplan.json"]
+        G --> H["conftest test tfplan.json  (14 passed)"]
+        H --> I["trivy config  (0 HIGH/CRITICAL)"]
+    end
+    I --> J["compliant -> deployment approved"]
+    F -. policy .-> P["policies/*.rego (OPA)"]
+    H -. policy .-> P
+```
+
+Simplified flow:
 
 ```
 Terraform code pushed
@@ -26,13 +45,41 @@ Cloud Monitoring + Cloud Logging + Grafana observe it continuously (planned)
 
 ---
 
-## Why this exists
+## Repository structure
 
-Most Terraform pipelines validate syntax (`terraform validate`) but don't enforce *organizational rules* — things like "no public storage buckets," "only approved instance types," "every resource must have an owner tag." This platform closes that gap: policy is written as code, versioned, tested, and enforced automatically, not left to manual review or tribal knowledge.
+```
+gcp-policy-as-code/
+├── .github/
+│   └── workflows/
+│       └── policy-check.yml      # CI: fmt → validate → OPA → Conftest → Trivy
+├── policies/                     # Rego policy engine (eval'd together in package main)
+│   ├── gke_security.rego         # private nodes, netpol, authorized nets, COS, metadata, SA
+│   ├── labels.rego               # required resource labels
+│   ├── firewall.rego             # blocks 0.0.0.0/0
+│   ├── buckets.rego              # blocks public bucket IAM
+│   ├── deletion.rego             # requires deletion protection
+│   ├── machines.rego             # approved machine types
+│   ├── _test_base.rego           # shared compliant fixtures
+│   └── *_test.rego               # Rego unit tests (26/26 passing)
+├── terraform/                    # infrastructure as code
+│   ├── provider.tf               # google provider, reads terraform-key.json
+│   ├── gke.tf                    # hardened private cluster + node pool
+│   ├── iam.tf                    # dedicated node service account + roles
+│   └── variables.tf              # master_authorized_cidr, etc.
+├── tests/                        # plan JSON fixtures (policy smoke tests)
+├── .gitignore                    # ignores terraform-key.json, *.tfstate, tfplan
+└── README.md
+```
 
 ---
 
-## Tech stack
+## Project goal
+
+Most Terraform pipelines validate syntax (`terraform validate`) but don't enforce *organizational rules* — things like "no public storage buckets," "only approved instance types," "every resource must have an owner tag." This project closes that gap by making policy versioned, testable, and enforceable before infrastructure reaches GCP.
+
+---
+
+## Technologies
 
 | Layer | Tool | Purpose |
 |---|---|---|
@@ -44,6 +91,116 @@ Most Terraform pipelines validate syntax (`terraform validate`) but don't enforc
 | **Container orchestration** | Kubernetes (GKE) | Runs policy checks in isolated, reproducible Jobs |
 | **Observability** | Cloud Monitoring, Cloud Logging, Grafana | Tracks infrastructure state, policy violations, and drift |
 | **Cloud provider** | Google Cloud Platform | Where the actual infrastructure lives |
+
+---
+
+## Policy examples
+
+Policies live in `policies/*.rego` and are all evaluated together in `package main`. Each rule emits a `deny` message when a change violates a project rule.
+
+**Require labels on every cluster and node pool** — `policies/labels.rego`:
+
+```rego
+package main
+
+required_labels := ["environment", "project", "managed_by"]
+
+deny contains msg if {
+    resource := input.planned_values.root_module.resources[_]
+    resource.type == "google_container_cluster"
+    some label in required_labels
+    not resource.values.resource_labels[label]
+    msg := sprintf("Cluster %s is missing required label: %s", [resource.address, label])
+}
+```
+
+**Block firewalls open to the world** — `policies/firewall.rego`:
+
+```rego
+deny contains msg if {
+    resource := input.planned_values.root_module.resources[_]
+    resource.type == "google_compute_firewall"
+    "0.0.0.0/0" in resource.values.source_ranges
+    msg := sprintf("Firewall rule %s allows traffic from 0.0.0.0/0", [resource.address])
+}
+```
+
+**Enforce GKE hardening** — `policies/gke_security.rego` checks private nodes, network policy, master authorized networks, `COS_CONTAINERD`, `GKE_METADATA`, a dedicated node service account, and auto-repair/auto-upgrade:
+
+```rego
+deny contains msg if {
+    resource := input.planned_values.root_module.resources[_]
+    resource.type == "google_container_node_pool"
+    image := resource.values.node_config[0].image_type
+    image != "COS_CONTAINERD"
+    msg := sprintf("Node pool %s must use COS_CONTAINERD image, got %q", [resource.address, image])
+}
+```
+
+The full rule set:
+
+- Storage IAM members must not grant access to `allUsers` or `allAuthenticatedUsers` (`buckets.rego`).
+- Firewall rules must not allow traffic from `0.0.0.0/0` (`firewall.rego`).
+- Production clusters must enable deletion protection (`deletion.rego`).
+- Clusters and node pools must carry `environment`, `project`, and `managed_by` labels (`labels.rego`).
+- Node pools must use approved machine types (`machines.rego`).
+- GKE clusters must use private nodes, network policy, and master authorized networks; node pools must use `COS_CONTAINERD`, `GKE_METADATA`, auto-repair, auto-upgrade, and a dedicated service account (`gke_security.rego`).
+
+Each rule has a matching unit test in `policies/*_test.rego`, run with `opa test policies/` (currently 26/26 passing).
+
+---
+
+## CI pipeline
+
+The repository workflow at [`.github/workflows/policy-check.yml`](.github/workflows/policy-check.yml) runs on pull requests and pushes to `main`:
+
+1. Checks out the repository and installs Terraform, OPA, and Conftest.
+2. Scans the Terraform directory with Trivy (`scan-type: config`).
+3. Runs `terraform fmt -check`, `terraform init`, and `terraform validate`.
+4. Runs `opa check` and `opa test` against all policies.
+5. Runs Conftest against the Terraform configuration and a regenerated Terraform plan.
+
+The workflow requires a `GOOGLE_CREDENTIALS` GitHub Actions secret and a valid `master_authorized_cidr` value for plan generation.
+
+---
+
+## Example policy checks
+
+### Failed check
+
+An open firewall rule is rejected by the policy gate:
+
+```text
+$ conftest test bad-firewall.json --policy policies/firewall.rego
+
+FAIL - bad-firewall.json - main - Firewall rule google_compute_firewall.allow_all allows traffic from 0.0.0.0/0
+
+1 test, 0 passed, 0 warnings, 1 failure, 0 exceptions
+```
+
+The change is blocked in CI before it can be applied.
+
+### Successful check
+
+A compliant, hardened plan passes every gate:
+
+```text
+$ conftest test policies/tfplan.json --policy policies/
+14 tests, 14 passed, 0 warnings, 0 failures, 0 exceptions
+
+$ opa test policies/
+PASS: 26/26
+
+$ trivy config --severity HIGH,CRITICAL terraform/
+. | terraform | 0 | Clean (no security findings detected)
+```
+
+Run the checks locally with:
+
+```bash
+opa test policies/ -v
+conftest test policies/tfplan.json --policy policies/
+```
 
 ---
 
@@ -95,16 +252,20 @@ This repository includes a `.github/workflows/policy-check.yml` workflow for pul
 - [x] Rego unit tests added for baseline and GKE policies (`opa test`: 26/26 passing)
 - [x] CI regenerates the Terraform plan and runs the complete policy gate against it
 - [x] Real GCP infrastructure defined in Terraform
+- [x] CI workflow hardened to fail with a clear message when `GOOGLE_CREDENTIALS` is missing
+- [x] Project documented in the README (architecture, structure, policy examples, CI pipeline, example checks)
 
 **In progress / planned:**
+- [ ] Set the `GOOGLE_CREDENTIALS` secret in the GitHub repo so `terraform init`/`plan` succeed in CI (currently fails on a missing secret)
 - [ ] Apply and verify the hardened GKE configuration and IAM bindings in the `dev` project
-- [ ] Expand the Rego policy set beyond the current baseline and GKE rules
+- [ ] Expand the Rego policy set beyond the current baseline and GKE rules (e.g. VPC, subnet, IAM, storage buckets)
+- [ ] Return the GitHub Actions pipeline status badge to the README
 - [ ] tfsec integrated into the pipeline
 - [ ] Cloud Monitoring + Cloud Logging wired up
 - [ ] Grafana dashboard deployed and connected
 - [ ] (Later phase, ~1 month out) RAG-based natural-language interface over policy violations and logs, using Ollama + local embeddings
 
-**Recent progress:** Added the repository-local policy workflow, GKE security policy rules, and Rego unit tests (26/26 passing). The Kubernetes Job pipeline remains proven in the companion GitHub Actions pipeline (August 2026).
+**Recent progress:** Documented the project in the README (architecture, policy examples, CI pipeline, example checks). Hardened the CI workflow so a missing `GOOGLE_CREDENTIALS` secret fails with a clear message instead of a confusing JSON parse error. The Kubernetes Job pipeline remains proven in the companion GitHub Actions pipeline (August 2026).
 
 ---
 
