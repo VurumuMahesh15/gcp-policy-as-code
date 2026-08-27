@@ -40,6 +40,12 @@ resource "google_container_node_pool" "primary_nodes" {
   location   = "us-central1-a"
   node_count = 1
 
+  depends_on = [
+    google_project_iam_member.gke_nodes_logging,
+    google_project_iam_member.gke_nodes_monitoring,
+    google_project_iam_member.gke_nodes_resource_metadata
+  ]
+
   management {
     auto_repair  = true
     auto_upgrade = true

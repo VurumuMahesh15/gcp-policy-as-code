@@ -1,14 +1,14 @@
 package main
 
 deny contains msg if {
-    resource := input.planned_values.root_module.resources[_]
+	resource := input.planned_values.root_module.resources[_]
 
-    resource.type == "google_compute_firewall"
+	resource.type == "google_compute_firewall"
 
-    "0.0.0.0/0" in resource.values.source_ranges
+	"0.0.0.0/0" in resource.values.source_ranges
 
-    msg := sprintf(
-        "Firewall rule %s allows traffic from 0.0.0.0/0",
-        [resource.address]
-    )
+	msg := sprintf(
+		"Firewall rule %s allows traffic from 0.0.0.0/0",
+		[resource.address],
+	)
 }
