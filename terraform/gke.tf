@@ -2,6 +2,22 @@ resource "google_container_cluster" "primary" {
   name     = "policy-platform-cluster"
   location = "us-central1-a"
 
+  network_policy {
+    enabled = true
+  }
+
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = false
+  }
+
+  master_authorized_networks_config {
+    cidr_blocks {
+      cidr_block   = var.master_authorized_cidr
+      display_name = "admin"
+    }
+  }
+
   resource_labels = {
     environment = "dev"
     project     = "policy-platform"
@@ -24,8 +40,24 @@ resource "google_container_node_pool" "primary_nodes" {
   location   = "us-central1-a"
   node_count = 1
 
+  management {
+    auto_repair  = true
+    auto_upgrade = true
+  }
+
   node_config {
-    machine_type = "e2-small"
+    machine_type    = "e2-small"
+    service_account = google_service_account.gke_nodes.email
+
+    image_type = "COS_CONTAINERD"
+
+    metadata = {
+      disable-legacy-endpoints = "true"
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
+    }
 
     labels = {
       environment = "dev"
