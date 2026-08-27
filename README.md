@@ -13,13 +13,13 @@ Infrastructure changes can be checked against versioned policy before they touch
 ```
 Terraform code pushed
         ↓
-CI validates + applies (companion pipeline; dev scope here)
+CI validates + policy-checks (dev scope here)
         ↓
 OPA/Rego policies (via Conftest) check the plan for violations
         ↓
-tfsec scans for security misconfigurations (planned)
+Trivy scans for Terraform security misconfigurations
         ↓
-If compliant → infrastructure is provisioned on GCP
+If compliant → infrastructure is ready for approved deployment on GCP
         ↓
 Cloud Monitoring + Cloud Logging + Grafana observe it continuously (planned)
 ```
@@ -39,8 +39,8 @@ Most Terraform pipelines validate syntax (`terraform validate`) but don't enforc
 | **Infrastructure as Code** | Terraform | Defines and provisions GCP resources |
 | **Policy engine** | OPA (Open Policy Agent) + Rego | Encodes the actual compliance rules |
 | **Policy test runner** | Conftest | Runs Rego policies against Terraform plan output |
-| **Security scanning** | tfsec | Catches security misconfigurations in Terraform code |
-| **CI/CD** | GitHub Actions (companion repo) | Automates validate → policy check → apply |
+| **Security scanning** | Trivy (CI), tfsec (planned) | Catches security misconfigurations in Terraform code |
+| **CI/CD** | GitHub Actions (this repo + companion pipeline) | Automates formatting, validation, policy checks, and security scanning |
 | **Container orchestration** | Kubernetes (GKE) | Runs policy checks in isolated, reproducible Jobs |
 | **Observability** | Cloud Monitoring, Cloud Logging, Grafana | Tracks infrastructure state, policy violations, and drift |
 | **Cloud provider** | Google Cloud Platform | Where the actual infrastructure lives |
@@ -75,7 +75,7 @@ This platform is built and run primarily in **`dev`** — real Terraform and pol
 
 The current Terraform labels target `dev` directly. Supporting additional environments (`staging`/`prod`) without duplicating configuration remains future work.
 
-The full multi-environment CI/CD *pipeline pattern* (staged approvals, wait timers, matrix builds across dev/staging/prod) is separately proven out in the companion repo: [GithubProjects-VM-](https://github.com/VurumuMahesh15/GithubProjects-VM-). This repository does not currently contain a `.github/workflows` directory.
+This repository includes a `.github/workflows/policy-check.yml` workflow for pull requests and pushes to `main`. The full multi-environment CI/CD *pipeline pattern* (staged approvals, wait timers, matrix builds across dev/staging/prod) is separately proven out in the companion repo: [GithubProjects-VM-](https://github.com/VurumuMahesh15/GithubProjects-VM-).
 
 ---
 
@@ -88,22 +88,23 @@ The full multi-environment CI/CD *pipeline pattern* (staged approvals, wait time
 - [x] Required APIs enabled (Compute, GKE, Monitoring, Logging, IAM, Resource Manager)
 - [x] Terraform service account created with scoped IAM role
 - [x] Budget alert configured on free trial credit
+- [x] Repository-local GitHub Actions policy workflow runs Terraform, OPA, Conftest, and Trivy checks
 - [x] Core CI/CD mechanism proven in the companion GitHub Actions pipeline — Kubernetes Job running Conftest/OPA policy checks against real Terraform inside a disposable cluster
 - [x] Baseline GKE hardening defined in Terraform (private nodes, network policy, authorized control-plane CIDR, and dedicated node service account)
 - [x] GKE security policy rules defined in Rego for private nodes, network policy, authorized networks, node image, metadata mode, upgrades, and service accounts
+- [x] Rego unit tests added for baseline and GKE policies (`opa test`: 26/26 passing)
+- [x] CI regenerates the Terraform plan and runs the complete policy gate against it
 - [x] Real GCP infrastructure defined in Terraform
 
 **In progress / planned:**
 - [ ] Apply and verify the hardened GKE configuration and IAM bindings in the `dev` project
-- [ ] Add isolated test fixtures and CI coverage for the GKE security policy rules
-- [ ] Expand the Rego policy set beyond the initial proof-of-concept policies
-- [ ] Regenerate the Terraform plan after configuration changes and run the complete policy gate against it
+- [ ] Expand the Rego policy set beyond the current baseline and GKE rules
 - [ ] tfsec integrated into the pipeline
 - [ ] Cloud Monitoring + Cloud Logging wired up
 - [ ] Grafana dashboard deployed and connected
 - [ ] (Later phase, ~1 month out) RAG-based natural-language interface over policy violations and logs, using Ollama + local embeddings
 
-**Recent progress:** Kubernetes Job pipeline with Conftest/OPA policy checks against real Terraform is proven in the companion GitHub Actions pipeline (August 2026).
+**Recent progress:** Added the repository-local policy workflow, GKE security policy rules, and Rego unit tests (26/26 passing). The Kubernetes Job pipeline remains proven in the companion GitHub Actions pipeline (August 2026).
 
 ---
 
