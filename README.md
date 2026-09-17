@@ -40,7 +40,11 @@ Trivy scans for Terraform security misconfigurations
         ↓
 If compliant → infrastructure is ready for approved deployment on GCP
         ↓
-Cloud Monitoring + Cloud Logging + Grafana observe it continuously (planned)
+Cloud Monitoring + Cloud Logging observe it continuously
+        ↓
+SRE runbooks guide incident response
+        ↓
+Chaos tests verify detection & recovery
 ```
 
 ---
@@ -65,7 +69,15 @@ gcp-policy-as-code/
 │   ├── provider.tf               # google provider, reads terraform-key.json
 │   ├── gke.tf                    # hardened private cluster + node pool
 │   ├── iam.tf                    # dedicated node service account + roles
+│   ├── observability.tf          # Monitoring/Logging APIs + CPU alert policy
+│   ├── dashboard.tf              # SRE Infrastructure Dashboard (GKE node + container CPU)
 │   └── variables.tf              # master_authorized_cidr, etc.
+├── chaos/                        # chaos experiment manifests
+│   └── cpu-stress.yaml           # CPU stress workload for incident testing
+├── docs/
+│   ├── runbooks/
+│   │   └── high-cpu.md           # SRE runbook: detect → investigate → remediate → verify
+│   └── chaos-test-01-high-cpu.md # Chaos test report (alert fired, recovery verified)
 ├── tests/                        # plan JSON fixtures (policy smoke tests)
 ├── .gitignore                    # ignores terraform-key.json, *.tfstate, tfplan
 └── README.md
@@ -164,6 +176,38 @@ The workflow requires a `GOOGLE_CREDENTIALS` GitHub Actions secret and a valid `
 
 ---
 
+## Observability & SRE
+
+The platform includes a live observability layer defined in `terraform/observability.tf` and `terraform/dashboard.tf`:
+
+| Resource | Purpose |
+|----------|---------|
+| Cloud Monitoring API | Metrics collection and alerting |
+| Cloud Logging API | Centralized log aggregation |
+| Cloud Trace API | Distributed tracing |
+| `google_monitoring_alert_policy.high_cpu` | Fires when GKE node CPU > 80% for 5 minutes |
+| `google_monitoring_dashboard.sre_dashboard` | Live dashboard with GKE node + container CPU graphs |
+
+**SRE workflow:**
+
+```
+GKE workload
+     ↓
+CPU increases
+     ↓
+Cloud Monitoring detects (>80% for 5min)
+     ↓
+Alert fires
+     ↓
+Engineer follows docs/runbooks/high-cpu.md
+     ↓
+Remediate → Verify recovery → Document
+```
+
+**Chaos tested:** See `docs/chaos-test-01-high-cpu.md` for the full incident report. A CPU stress workload pushed the node to 86%, the alert fired, the dashboard showed live data, and CPU recovered to 30% after workload removal.
+
+---
+
 ## Example policy checks
 
 ### Failed check
@@ -254,18 +298,22 @@ This repository includes a `.github/workflows/policy-check.yml` workflow for pul
 - [x] Real GCP infrastructure defined in Terraform
 - [x] CI workflow hardened to fail with a clear message when `GOOGLE_CREDENTIALS` is missing
 - [x] Project documented in the README (architecture, structure, policy examples, CI pipeline, example checks)
+- [x] Cloud Monitoring + Cloud Logging APIs enabled via Terraform (`observability.tf`)
+- [x] SRE Infrastructure Dashboard deployed (GKE node CPU + container CPU widgets)
+- [x] High CPU alert policy configured (`kubernetes.io/node/cpu/allocatable_utilization` > 80% for 5min)
+- [x] SRE runbook created (`docs/runbooks/high-cpu.md`): 9-step incident response procedure
+- [x] Chaos test executed: CPU stress workload triggered alert, dashboard showed live data, recovery verified (86% → 30%)
+- [x] Fixed observability bug: alert was monitoring `gce_instance` instead of `k8s_node` metric
 
 **In progress / planned:**
 - [ ] Set the `GOOGLE_CREDENTIALS` secret in the GitHub repo so `terraform init`/`plan` succeed in CI (currently fails on a missing secret)
-- [ ] Apply and verify the hardened GKE configuration and IAM bindings in the `dev` project
 - [ ] Expand the Rego policy set beyond the current baseline and GKE rules (e.g. VPC, subnet, IAM, storage buckets)
 - [ ] Return the GitHub Actions pipeline status badge to the README
 - [ ] tfsec integrated into the pipeline
-- [ ] Cloud Monitoring + Cloud Logging wired up
 - [ ] Grafana dashboard deployed and connected
 - [ ] (Later phase, ~1 month out) RAG-based natural-language interface over policy violations and logs, using Ollama + local embeddings
 
-**Recent progress:** Documented the project in the README (architecture, policy examples, CI pipeline, example checks). Hardened the CI workflow so a missing `GOOGLE_CREDENTIALS` secret fails with a clear message instead of a confusing JSON parse error. The Kubernetes Job pipeline remains proven in the companion GitHub Actions pipeline (August 2026).
+**Recent progress:** Completed Day 6-7 observability & SRE work. Deployed Cloud Monitoring dashboard with GKE node/container CPU widgets, configured high-CPU alert policy, created SRE runbook, and executed successful chaos test that verified end-to-end incident detection and recovery. Fixed a real bug where the alert monitored the wrong metric type for GKE workloads.
 
 ---
 
