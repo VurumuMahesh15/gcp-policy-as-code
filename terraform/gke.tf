@@ -33,6 +33,10 @@ resource "google_container_cluster" "primary" {
   networking_mode = "VPC_NATIVE"
 
   ip_allocation_policy {}
+
+  workload_identity_config {
+    workload_pool = "policy-as-code-platform.svc.id.goog"
+  }
 }
 
 resource "google_container_node_pool" "primary_nodes" {
