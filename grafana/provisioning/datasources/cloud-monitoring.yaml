@@ -1,0 +1,16 @@
+apiVersion: 1
+
+# Cloud Monitoring datasource for Grafana.
+# No credentials are stored here: when Grafana runs on GCP (or with
+# Application Default Credentials), the Stackdriver datasource authenticates
+# with the runtime service account / ADC. The project is injected via the
+# GCP_PROJECT environment variable so no project ID is hardcoded.
+datasources:
+  - name: Cloud Monitoring
+    uid: cloud-monitoring
+    type: stackdriver
+    access: proxy
+    isDefault: true
+    editable: true
+    jsonData:
+      project: $GCP_PROJECT

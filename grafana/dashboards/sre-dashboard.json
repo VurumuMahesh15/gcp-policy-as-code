@@ -1,0 +1,188 @@
+{
+  "title": "SRE Infrastructure",
+  "uid": "sre-infrastructure",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "utc",
+  "time": { "from": "now-3h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "project",
+        "type": "constant",
+        "label": "GCP project",
+        "query": "policy-as-code-platform",
+        "current": { "text": "policy-as-code-platform", "value": "policy-as-code-platform" }
+      },
+      {
+        "name": "cluster",
+        "type": "constant",
+        "label": "GKE cluster",
+        "query": "policy-platform-cluster",
+        "current": { "text": "policy-platform-cluster", "value": "policy-platform-cluster" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "1 · Infrastructure Health — is everything OK right now?",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "GKE node CPU utilization",
+      "description": "Same signal as the high-CPU alert (kubernetes.io/node/cpu/allocatable_utilization on k8s_node, > 0.8 for 5m). Threshold line marks the alert boundary.",
+      "datasource": { "type": "stackdriver", "uid": "cloud-monitoring" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.8 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "queryType": "metrics",
+          "metricType": "kubernetes.io/node/cpu/allocatable_utilization",
+          "metricKind": "GAUGE",
+          "filters": ["resource.cluster_name", "=", "$cluster"],
+          "alignmentPeriod": "60s",
+          "perSeriesAligner": "ALIGN_MEAN",
+          "groupBys": ["resource.node_name"]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "GKE container CPU usage",
+      "description": "Per-container CPU to attribute node pressure to workloads.",
+      "datasource": { "type": "stackdriver", "uid": "cloud-monitoring" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "cores" } },
+      "targets": [
+        {
+          "queryType": "metrics",
+          "metricType": "kubernetes.io/container/cpu/core_usage_time",
+          "metricKind": "CUMULATIVE",
+          "filters": ["resource.cluster_name", "=", "$cluster"],
+          "alignmentPeriod": "60s",
+          "perSeriesAligner": "ALIGN_RATE",
+          "groupBys": ["resource.container_name"]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "GKE node memory utilization",
+      "description": "Memory pressure alongside CPU; useful when CPU saturation is a symptom rather than the cause.",
+      "datasource": { "type": "stackdriver", "uid": "cloud-monitoring" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } },
+      "targets": [
+        {
+          "queryType": "metrics",
+          "metricType": "kubernetes.io/node/memory/allocatable_utilization",
+          "metricKind": "GAUGE",
+          "filters": ["resource.cluster_name", "=", "$cluster"],
+          "alignmentPeriod": "60s",
+          "perSeriesAligner": "ALIGN_MEAN",
+          "groupBys": ["resource.node_name"]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "text",
+      "title": "Alert state",
+      "description": "Alert state lives in Cloud Monitoring; this panel records the contract so responders know what to check.",
+      "datasource": { "type": "datasource", "uid": "-- Dashboard --" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Alert contract\n\n- **Policy:** `SRE - High CPU Utilization`\n- **Fires when:** node CPU > 80% for 5 minutes\n- **Check:** Cloud Monitoring → Alerting → Incidents\n- **Then:** follow `docs/runbooks/high-cpu.md`\n\nNo alert state is faked here: when the lab is destroyed this panel is a pointer, not a status."
+      }
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "2 · Degradation — something is getting worse, what?",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Node CPU over time (wide window)",
+      "description": "Same CPU signal on a longer window to distinguish spikes from trends. Compare against the 0.8 threshold.",
+      "datasource": { "type": "stackdriver", "uid": "cloud-monitoring" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 18 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.8 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "queryType": "metrics",
+          "metricType": "kubernetes.io/node/cpu/allocatable_utilization",
+          "metricKind": "GAUGE",
+          "filters": ["resource.cluster_name", "=", "$cluster"],
+          "alignmentPeriod": "300s",
+          "perSeriesAligner": "ALIGN_MEAN",
+          "groupBys": ["resource.node_name"]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "text",
+      "title": "Log signal",
+      "description": "Cloud Logging has no Grafana panel without a logs datasource; this panel gives the exact query to run.",
+      "datasource": { "type": "datasource", "uid": "-- Dashboard --" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 18 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Correlate in Cloud Logging\n\n```\nresource.type=\"k8s_node\"\nresource.labels.cluster_name=\"$cluster\"\nseverity>=\"WARNING\"\n```\n\nLook for OOM kills, throttling, and workload errors in the same window as the CPU rise."
+      }
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "3 · Incident investigation — walk the timeline",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 }
+    },
+    {
+      "id": 10,
+      "type": "text",
+      "title": "Incident walkthrough",
+      "description": "The procedure this dashboard supports during chaos exercises.",
+      "datasource": { "type": "datasource", "uid": "-- Dashboard --" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 27 },
+      "options": {
+        "mode": "markdown",
+        "content": "## CPU incident walkthrough\n\n1. **CPU spike** — node CPU crosses 0.8 on panel 2/7.\n2. **Alert fires** — Cloud Monitoring opens an incident after 5m.\n3. **Identify** — panel 3 attributes pressure to a container/workload.\n4. **Logs** — run the panel 8 query for the same window.\n5. **Investigate** — find the workload/process (see `docs/runbooks/high-cpu.md`).\n6. **Mitigate** — throttle, scale, or remove the workload.\n7. **Recover** — CPU returns below threshold (cf. chaos test: 86% → 30%).\n8. **Verify** — alert auto-closes; record timeline for the postmortem.\n\nProven once in `docs/chaos-test-01-high-cpu.md`; reused for every future incident drill."
+      }
+    }
+  ]
+}

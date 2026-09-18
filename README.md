@@ -76,6 +76,10 @@ gcp-policy-as-code/
 │   └── variables.tf              # master_authorized_cidr, etc.
 ├── chaos/                        # chaos experiment manifests
 │   └── cpu-stress.yaml           # CPU stress workload for incident testing
+├── grafana/                      # Grafana-as-code (no live server; $0)
+│   ├── provisioning/datasources/ # Cloud Monitoring datasource (project via $GCP_PROJECT)
+│   ├── provisioning/dashboards/  # file-based dashboard provider
+│   └── dashboards/sre-dashboard.json # SRE dashboard: Health / Degradation / Incident
 ├── docs/
 │   ├── runbooks/
 │   │   └── high-cpu.md           # SRE runbook: detect → investigate → remediate → verify
@@ -104,6 +108,7 @@ Most Terraform pipelines validate syntax (`terraform validate`) but don't enforc
 | **CI/CD** | GitHub Actions (this repo + companion pipeline) | Automates formatting, validation, policy checks, and security scanning |
 | **Container orchestration** | Kubernetes (GKE) | Runs policy checks in isolated, reproducible Jobs |
 | **Observability** | Cloud Monitoring, Cloud Logging | Tracks infrastructure state, policy violations, and drift |
+| **Visualization** | Grafana (config-as-code, no live server) | SRE dashboard (Health/Degradation/Incident) over Cloud Monitoring; connects when the lab is live |
 | **Cloud provider** | Google Cloud Platform | Where the actual infrastructure lives |
 
 ---
@@ -368,7 +373,7 @@ This repository includes a `.github/workflows/policy-check.yml` workflow for pul
 
 **In progress / planned:**
 - [x] tfsec evaluation — evaluated and not added (functionality represented via Trivy config scan; probe verified `GCP-0027` detection, baseline 0 HIGH/CRITICAL)
-- [ ] Grafana — add only if it adds value beyond Cloud Monitoring dashboard
+- [x] Grafana — provisioned as configuration (`grafana/`): Cloud Monitoring datasource + Health/Degradation/Incident dashboard; no live server while the lab is destroyed ($0)
 - [ ] (Later phase, ~1 month out) RAG-based natural-language interface over policy violations and logs, using Ollama + local embeddings
 
 **Recent progress:** Closed the `0.0.0.0/0` master-access gap end-to-end (policy + test + local negative/positive verification + CI #9 fail / #10 pass). Reconciled GKE to $0 while keeping config reproducible. CI badge live at top of this file.

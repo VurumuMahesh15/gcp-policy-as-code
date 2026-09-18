@@ -26,3 +26,6 @@ credentials*.json
 # Terraform plan files
 terraform/tfplan.binary
 policies/tfplan.json
+
+# Grafana local env (project/auth pointers, never secrets)
+grafana/variables.env
