@@ -96,6 +96,18 @@ deny contains msg if {
 	msg := sprintf("Node pool %s must use a dedicated (non-default) service account", [resource.address])
 }
 
+deny contains msg if {
+	resource := input.planned_values.root_module.resources[_]
+	resource.type == "google_container_cluster"
+
+	not resource.values.workload_identity_config[0]
+
+	msg := sprintf(
+		"Cluster %s must configure Workload Identity",
+		[resource.address],
+	)
+}
+
 dedicated_service_account(resource) if {
 	config_resources := input.configuration.root_module.resources[_]
 	config_resources.type == "google_container_node_pool"

@@ -12,6 +12,7 @@ compliant_cluster_values(env) := {
 	"private_cluster_config": [{"enable_private_nodes": true}],
 	"network_policy": [{"enabled": true}],
 	"master_authorized_networks_config": [{"cidr_blocks": [{"cidr_block": "1.2.3.4/32"}]}],
+	"workload_identity_config": [{"workload_pool": "policy-as-code-platform.svc.id.goog"}],
 }
 
 # Cluster values with an explicit labels map (avoids deep merge from union).
@@ -21,6 +22,7 @@ cluster_values_with_labels(labels) := {
 	"private_cluster_config": [{"enable_private_nodes": true}],
 	"network_policy": [{"enabled": true}],
 	"master_authorized_networks_config": [{"cidr_blocks": [{"cidr_block": "1.2.3.4/32"}]}],
+	"workload_identity_config": [{"workload_pool": "policy-as-code-platform.svc.id.goog"}],
 }
 
 # Fully-compliant node pool values.

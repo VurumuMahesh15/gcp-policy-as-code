@@ -108,3 +108,23 @@ test_gke_uses_default_service_account if {
 	count(result) == 1
 	result[_] == "Node pool google_container_node_pool.primary_nodes must use a dedicated (non-default) service account"
 }
+
+test_gke_workload_identity_required if {
+	values := object.union(compliant_cluster_values("dev"), {
+		"workload_identity_config": [],
+	})
+	result := deny with input as cluster_plan(values)
+	count(result) == 1
+	result[_] == "Cluster google_container_cluster.primary must configure Workload Identity"
+}
+
+test_gke_workload_identity_missing_real_plan_shape if {
+	values := object.union(compliant_cluster_values("dev"), {
+		"workload_identity_config": null,
+	})
+
+	result := deny with input as cluster_plan(values)
+
+	count(result) == 1
+	result[_] == "Cluster google_container_cluster.primary must configure Workload Identity"
+}
