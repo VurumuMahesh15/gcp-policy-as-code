@@ -70,5 +70,5 @@ Intentionally saturated a GKE e2-small node with CPU stress workloads to verify:
 ## Cleanup
 
 - [x] Stress workload deleted
-- [ ] GKE cluster destroyed (pending - to save costs)
-- [ ] Terraform state reconciled (pending)
+- [x] GKE cluster destroyed
+- [x] Terraform state reconciled

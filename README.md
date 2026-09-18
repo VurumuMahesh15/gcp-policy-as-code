@@ -203,7 +203,7 @@ The platform includes a live observability layer defined in `terraform/observabi
 | Resource | Purpose |
 |----------|---------|
 | Cloud Monitoring API | Metrics collection and alerting |
-| Cloud Logging API | Centralized log aggregation |
+| Cloud Logging API | Centralized log aggregation (default log bucket; no custom sink — see note below) |
 | Cloud Trace API | Distributed tracing |
 | `google_monitoring_alert_policy.high_cpu` | Fires when GKE node CPU > 80% for 5 minutes |
 | `google_monitoring_dashboard.sre_dashboard` | Live dashboard with GKE node + container CPU graphs |
@@ -225,6 +225,8 @@ Remediate → Verify recovery → Document
 ```
 
 **Chaos tested:** See `docs/chaos-test-01-high-cpu.md` for the full incident report. A CPU stress workload pushed the node to 86%, the alert fired, the dashboard showed live data, and CPU recovered to 30% after workload removal.
+
+**Logging note:** the project uses Cloud Logging's default bucket — there is intentionally no custom log sink/bucket resource. Grafana's log panel points at the exact Cloud Logging query to run during incidents.
 
 ---
 
@@ -328,6 +330,19 @@ terraform plan
 
 The cluster definition uses private nodes and a control-plane endpoint restricted by the authorized CIDR. `terraform/gke.tf` is kept in the repo for reproducibility, but no cluster is currently applied — ongoing GKE compute cost is $0. Review the plan carefully before applying it to GCP.
 
+## Teardown
+
+To return the lab to its $0 resting state:
+
+```bash
+cd terraform
+terraform destroy   # removes the cluster/node pool; APIs, SA/IAM, alert + dashboard remain (negligible cost)
+gcloud container clusters list --project=policy-as-code-platform   # expect empty
+terraform -chdir=terraform state list   # expect only IAM/SA/monitoring resources, no cluster
+```
+
+What to preserve: `policies/`, `tests/`, `docs/`, `grafana/`, `chaos/`, and `terraform/*.tf` stay committed. Never commit `terraform-key.json`, `*.tfvars`, `*.tfstate`, or plan binaries (all gitignored). To run the lab again: `terraform apply` with a trusted `master_authorized_cidr`, then follow `docs/runbooks/high-cpu.md`.
+
 ---
 
 ## Environments
@@ -344,7 +359,7 @@ This repository includes a `.github/workflows/policy-check.yml` workflow for pul
 
 ## Project status
 
-✅ **Policy-as-Code portion complete** — build started August 21, 2026. CI is green (`c4dca6b`), GKE cost is $0, policy gap closed with full verification.
+✅ **Policy-as-Code portion complete** — build started August 21, 2026. CI status is shown by the badge at the top of this file; GKE compute cost is $0 with config kept reproducible.
 
 **Completed:**
 - [x] GCP project provisioned (`policy-as-code-platform`)
