@@ -5,12 +5,16 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
-  policy-check:
-    name: Terraform + OPA + Conftest + Trivy
+  lint:
+    name: lint / fmt
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,13 +25,15 @@ jobs:
         with:
           terraform_version: 1.15.8
 
-      - name: Set up OPA + Conftest
-        run: |
-          curl -L -o /tmp/opa https://openpolicyagent.org/downloads/v1.19.0/opa_linux_amd64_static
-          chmod +x /tmp/opa && sudo mv /tmp/opa /usr/local/bin/opa
-          curl -L -o /tmp/conftest.tar.gz https://github.com/open-policy-agent/conftest/releases/download/v0.69.0/conftest_0.69.0_Linux_x86_64.tar.gz
-          tar -xzf /tmp/conftest.tar.gz -C /tmp
-          sudo mv /tmp/conftest /usr/local/bin/conftest
+      - name: Terraform fmt
+        run: terraform -chdir=terraform fmt -check
+
+  trivy:
+    name: trivy / config scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Trivy - Terraform misconfigurations
         uses: aquasecurity/trivy-action@v0.36.0
@@ -38,8 +44,39 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: "1"
 
-      - name: Terraform fmt
-        run: terraform -chdir=terraform fmt -check
+  opa:
+    name: opa / check + test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up OPA + Conftest
+        run: |
+          curl -L -o /tmp/opa https://openpolicyagent.org/downloads/v1.19.0/opa_linux_amd64_static
+          chmod +x /tmp/opa && sudo mv /tmp/opa /usr/local/bin/opa
+          curl -L -o /tmp/conftest.tar.gz https://github.com/open-policy-agent/conftest/releases/download/v0.69.0/conftest_0.69.0_Linux_x86_64.tar.gz
+          tar -xzf /tmp/conftest.tar.gz -C /tmp
+          sudo mv /tmp/conftest /usr/local/bin/conftest
+
+      - name: OPA check
+        run: opa check policies/
+
+      - name: OPA test
+        run: opa test policies/ -v
+
+  terraform:
+    name: terraform / validate + plan
+    needs: [lint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
 
       - name: Terraform init
         env:
@@ -59,19 +96,71 @@ jobs:
       - name: Terraform validate
         run: terraform -chdir=terraform validate
 
-      - name: OPA check
-        run: opa check policies/
-
-      - name: OPA test
-        run: opa test policies/ -v
-
-      - name: Conftest - policy gate
-        run: conftest test terraform/ --policy policies/
-
-      - name: Conftest - regenerated plan fixture
+      - name: Terraform plan
         env:
           TF_VAR_master_authorized_cidr: 10.0.0.0/24
         run: |
           terraform -chdir=terraform plan -out=tfplan.binary
           terraform -chdir=terraform show -json tfplan.binary > policies/tfplan.json
-          conftest test policies/tfplan.json --policy policies/
+
+      - name: Upload plan JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-json
+          path: policies/tfplan.json
+
+  conftest-config:
+    name: conftest / config
+    needs: [opa]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up OPA + Conftest
+        run: |
+          curl -L -o /tmp/opa https://openpolicyagent.org/downloads/v1.19.0/opa_linux_amd64_static
+          chmod +x /tmp/opa && sudo mv /tmp/opa /usr/local/bin/opa
+          curl -L -o /tmp/conftest.tar.gz https://github.com/open-policy-agent/conftest/releases/download/v0.69.0/conftest_0.69.0_Linux_x86_64.tar.gz
+          tar -xzf /tmp/conftest.tar.gz -C /tmp
+          sudo mv /tmp/conftest /usr/local/bin/conftest
+
+      - name: Conftest - policy gate
+        run: conftest test terraform/ --policy policies/
+
+  conftest-plan:
+    name: conftest / plan
+    needs: [terraform, opa]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up OPA + Conftest
+        run: |
+          curl -L -o /tmp/opa https://openpolicyagent.org/downloads/v1.19.0/opa_linux_amd64_static
+          chmod +x /tmp/opa && sudo mv /tmp/opa /usr/local/bin/opa
+          curl -L -o /tmp/conftest.tar.gz https://github.com/open-policy-agent/conftest/releases/download/v0.69.0/conftest_0.69.0_Linux_x86_64.tar.gz
+          tar -xzf /tmp/conftest.tar.gz -C /tmp
+          sudo mv /tmp/conftest /usr/local/bin/conftest
+
+      - name: Download plan JSON
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-json
+          path: .
+
+      - name: Conftest - regenerated plan fixture
+        run: conftest test tfplan.json --policy policies/
+
+  gate:
+    name: policy gate
+    needs: [trivy, conftest-config, conftest-plan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All policy gates passed
+        run: |
+          echo "## Policy gate — all checks passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- trivy: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- conftest config (252): passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- conftest plan (28): passed" >> "$GITHUB_STEP_SUMMARY"

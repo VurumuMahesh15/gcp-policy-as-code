@@ -14,19 +14,26 @@ Infrastructure changes are checked against versioned policy before they touch re
 
 ```mermaid
 flowchart TB
-    A["Terraform code (gke.tf, iam.tf, provider.tf)"] --> B["GitHub Actions workflow"]
-    subgraph CI["GitHub Actions - policy-check.yml"]
-        B --> C["terraform fmt -check"]
-        C --> D["terraform init + validate"]
-        D --> E["opa check + opa test  (55/55)"]
-        E --> F["conftest test terraform/  (252 passed)"]
-        F --> G["terraform plan -> show -json -> tfplan.json"]
-        G --> H["conftest test tfplan.json  (28 passed)"]
-        H --> I["trivy config  (0 HIGH/CRITICAL)"]
+    A["Terraform code (gke.tf, iam.tf, provider.tf)"] --> CI
+    subgraph CI["GitHub Actions - policy-check.yml (7 jobs)"]
+        L["lint<br/>fmt -check"]
+        T["trivy<br/>config scan"]
+        O["opa<br/>check + test (55/55)"]
+        TF["terraform<br/>init + validate + plan"]
+        CC["conftest-config<br/>(252 passed)"]
+        CP["conftest-plan<br/>(28 passed)"]
+        G["gate<br/>summary"]
+        L --> TF
+        O --> CC
+        TF --> CP
+        O --> CP
+        T --> G
+        CC --> G
+        CP --> G
     end
-    I --> J["compliant -> deployment approved"]
-    F -. policy .-> P["policies/*.rego (OPA)"]
-    H -. policy .-> P
+    G --> J["compliant -> deployment approved"]
+    CC -. policy .-> P["policies/*.rego (OPA)"]
+    CP -. policy .-> P
 ```
 
 Simplified flow:
@@ -57,7 +64,7 @@ Chaos tests verify detection & recovery
 gcp-policy-as-code/
 ├── .github/
 │   └── workflows/
-│       └── policy-check.yml      # CI: fmt → validate → OPA → Conftest → Trivy
+│       └── policy-check.yml      # CI DAG: lint/trivy/opa → terraform → conftest → gate
 ├── policies/                     # Rego policy engine (eval'd together in package main)
 │   ├── gke_security.rego         # private nodes, netpol, authorized nets, no 0.0.0.0/0, COS, metadata, SA
 │   ├── labels.rego               # required resource labels
@@ -184,13 +191,13 @@ Each rule has a matching unit test in `policies/*_test.rego`, run with `opa test
 
 ## CI pipeline
 
-The repository workflow at [`.github/workflows/policy-check.yml`](.github/workflows/policy-check.yml) runs on pull requests and pushes to `main`:
+The repository workflow at [`.github/workflows/policy-check.yml`](.github/workflows/policy-check.yml) runs on pull requests and pushes to `main` as a 7-job DAG (so the Actions graph shows parallel blocks, not one):
 
-1. Checks out the repository and installs Terraform, OPA, and Conftest.
-2. Scans the Terraform directory with Trivy (`scan-type: config`, `HIGH,CRITICAL` fail the build).
-3. Runs `terraform fmt -check`, `terraform init`, and `terraform validate`.
-4. Runs `opa check` and `opa test` against all policies (55/55).
-5. Runs Conftest against the Terraform configuration (`252 passed`) and a regenerated Terraform plan (`28 passed`).
+- `lint`, `trivy`, `opa` run in parallel — `fmt -check`, Trivy config scan (`HIGH,CRITICAL` fail the build), `opa check` + `opa test` (55/55).
+- `terraform` (needs `lint`) — `init`, `validate`, `plan` with the safe `10.0.0.0/24` fixture, uploads `policies/tfplan.json` as the `tfplan-json` artifact.
+- `conftest-config` (needs `opa`) — Conftest against `terraform/` (`252 passed`).
+- `conftest-plan` (needs `terraform` + `opa`) — downloads `tfplan-json`, Conftest against the regenerated plan (`28 passed`).
+- `gate` (needs `trivy` + both Conftest jobs) — final summary; green only if everything passed.
 
 The workflow uses a `GOOGLE_CREDENTIALS` GitHub Actions secret (service-account JSON, never committed) for `terraform init`/`plan`, and a safe RFC1918 fixture `TF_VAR_master_authorized_cidr=10.0.0.0/24` for plan generation — so CI tests the compliant path without exposing a real IP. Local `terraform/terraform.tfvars` (gitignored) holds the operator's real admin CIDR.
 
