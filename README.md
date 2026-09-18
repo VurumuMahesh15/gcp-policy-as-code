@@ -18,10 +18,10 @@ flowchart TB
     subgraph CI["GitHub Actions - policy-check.yml"]
         B --> C["terraform fmt -check"]
         C --> D["terraform init + validate"]
-        D --> E["opa check + opa test  (27/27)"]
-        E --> F["conftest test terraform/  (135 passed)"]
+        D --> E["opa check + opa test  (55/55)"]
+        E --> F["conftest test terraform/  (252 passed)"]
         F --> G["terraform plan -> show -json -> tfplan.json"]
-        G --> H["conftest test tfplan.json  (15 passed)"]
+        G --> H["conftest test tfplan.json  (28 passed)"]
         H --> I["trivy config  (0 HIGH/CRITICAL)"]
     end
     I --> J["compliant -> deployment approved"]
@@ -66,7 +66,7 @@ gcp-policy-as-code/
 │   ├── deletion.rego             # requires deletion protection
 │   ├── machines.rego             # approved machine types
 │   ├── _test_base.rego           # shared compliant fixtures
-│   └── *_test.rego               # Rego unit tests (27/27 passing)
+│   └── *_test.rego               # Rego unit tests (55/55 passing)
 ├── terraform/                    # infrastructure as code
 │   ├── provider.tf               # google provider, reads terraform-key.json
 │   ├── gke.tf                    # hardened private cluster + node pool (kept, not applied — $0 cost)
@@ -173,7 +173,7 @@ The full rule set:
 - Node pools must use approved machine types (`machines.rego`).
 - GKE clusters must use private nodes, network policy, and restricted master authorized networks (never `0.0.0.0/0`); node pools must use `COS_CONTAINERD`, `GKE_METADATA`, auto-repair, auto-upgrade, and a dedicated service account (`gke_security.rego`).
 
-Each rule has a matching unit test in `policies/*_test.rego`, run with `opa test policies/` (currently 27/27 passing).
+Each rule has a matching unit test in `policies/*_test.rego`, run with `opa test policies/` (currently 55/55 passing).
 
 ---
 
@@ -184,8 +184,8 @@ The repository workflow at [`.github/workflows/policy-check.yml`](.github/workfl
 1. Checks out the repository and installs Terraform, OPA, and Conftest.
 2. Scans the Terraform directory with Trivy (`scan-type: config`, `HIGH,CRITICAL` fail the build).
 3. Runs `terraform fmt -check`, `terraform init`, and `terraform validate`.
-4. Runs `opa check` and `opa test` against all policies (27/27).
-5. Runs Conftest against the Terraform configuration (`135 passed`) and a regenerated Terraform plan (`15 passed`).
+4. Runs `opa check` and `opa test` against all policies (55/55).
+5. Runs Conftest against the Terraform configuration (`252 passed`) and a regenerated Terraform plan (`28 passed`).
 
 The workflow uses a `GOOGLE_CREDENTIALS` GitHub Actions secret (service-account JSON, never committed) for `terraform init`/`plan`, and a safe RFC1918 fixture `TF_VAR_master_authorized_cidr=10.0.0.0/24` for plan generation — so CI tests the compliant path without exposing a real IP. Local `terraform/terraform.tfvars` (gitignored) holds the operator's real admin CIDR.
 
@@ -250,7 +250,7 @@ $ conftest test /tmp/tfplan-insecure.json --policy policies/
 
 FAIL - /tmp/tfplan-insecure.json - main - Cluster google_container_cluster.primary must not allow 0.0.0.0/0 in master authorized networks
 
-15 tests, 14 passed, 0 warnings, 1 failure, 0 exceptions
+28 tests, 27 passed, 0 warnings, 1 failure, 0 exceptions
 ```
 
 ### Successful check
@@ -259,10 +259,10 @@ A compliant, hardened plan passes every gate:
 
 ```text
 $ conftest test policies/tfplan.json --policy policies/
-15 tests, 15 passed, 0 warnings, 0 failures, 0 exceptions
+28 tests, 28 passed, 0 warnings, 0 failures, 0 exceptions
 
 $ opa test policies/
-PASS: 27/27
+PASS: 55/55
 
 $ trivy config --severity HIGH,CRITICAL terraform/
 . | terraform | 0 | Clean (no security findings detected)
@@ -286,12 +286,18 @@ The `0.0.0.0/0` control was added after a real gap was found: the old rule only 
 
 | Test | Result |
 |------|--------|
-| `0.0.0.0/0` locally | ❌ Blocked (14 passed + 1 failure) |
+| `0.0.0.0/0` locally | ❌ Blocked (27 passed + 1 failure) |
 | `0.0.0.0/0` in CI (#9 `a3fe49a`) | ❌ Blocked (pipeline failed as intended) |
-| `10.0.0.0/24` locally | ✅ 15/15 |
-| `10.0.0.0/24` in CI (#10 `c4dca6b`) | ✅ Passed |
-| OPA/Conftest unit tests | ✅ 27/27 |
+| `10.0.0.0/24` locally | ✅ 28/28 |
+| `10.0.0.0/24` in CI (#10 `c4dca6b`, #11 `2eb5494`) | ✅ Passed |
+| OPA/Conftest unit tests | ✅ 55/55 |
 | Trivy | ✅ 0 HIGH/CRITICAL |
+
+Three layers, three different things:
+
+* **55/55** → individual policy behavior + regression tests (synthetic inputs)
+* **28/28** → policies evaluated against the actual Terraform plan
+* **25/25** → deliberately broken infrastructure gets rejected (break matrix: GKE, IAM, firewall, storage, operations, network)
 
 Note: `terraform/terraform.tfvars` overrides `TF_VAR_*` env vars locally, so local negative tests must use `-var="master_authorized_cidr=..."`. CI has no `tfvars` file (gitignored), so its `TF_VAR_master_authorized_cidr` fixture applies directly.
 
@@ -344,8 +350,9 @@ This repository includes a `.github/workflows/policy-check.yml` workflow for pul
 - [x] Core CI/CD mechanism proven in the companion GitHub Actions pipeline — Kubernetes Job running Conftest/OPA policy checks against real Terraform inside a disposable cluster
 - [x] Baseline GKE hardening defined in Terraform (private nodes, network policy, authorized control-plane CIDR, and dedicated node service account)
 - [x] GKE security policy rules defined in Rego for private nodes, network policy, authorized networks, node image, metadata mode, upgrades, and service accounts
-- [x] Rego unit tests added for baseline and GKE policies (`opa test`: 27/27 passing)
-- [x] CI regenerates the Terraform plan and runs the complete policy gate against it (`135 passed` on config, `15 passed` on plan)
+- [x] Rego unit tests added for baseline and GKE policies (`opa test`: 55/55 passing, incl. real-plan-shape regression tests)
+- [x] CI regenerates the Terraform plan and runs the complete policy gate against it (`252 passed` on config, `28 passed` on plan)
+- [x] 25-case break matrix executed locally: every intentional violation (GKE, IAM, firewall, storage, deletion, labels, machines, network) caught, fixes verified, no regressions
 - [x] Real GCP infrastructure defined in Terraform
 - [x] CI workflow hardened to fail with a clear message when `GOOGLE_CREDENTIALS` is missing
 - [x] `GOOGLE_CREDENTIALS` secret set — CI `init`/`plan` succeed (verified in run #10)
