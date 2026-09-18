@@ -100,7 +100,7 @@ Most Terraform pipelines validate syntax (`terraform validate`) but don't enforc
 | **Infrastructure as Code** | Terraform | Defines and provisions GCP resources |
 | **Policy engine** | OPA (Open Policy Agent) + Rego | Encodes the actual compliance rules |
 | **Policy test runner** | Conftest | Runs Rego policies against Terraform plan output |
-| **Security scanning** | Trivy (CI) | Catches security misconfigurations in Terraform code |
+| **Security scanning** | Trivy `config` (CI) | Catches known IaC misconfigurations (tfsec's successor engine); custom org rules live in OPA |
 | **CI/CD** | GitHub Actions (this repo + companion pipeline) | Automates formatting, validation, policy checks, and security scanning |
 | **Container orchestration** | Kubernetes (GKE) | Runs policy checks in isolated, reproducible Jobs |
 | **Observability** | Cloud Monitoring, Cloud Logging | Tracks infrastructure state, policy violations, and drift |
@@ -367,7 +367,7 @@ This repository includes a `.github/workflows/policy-check.yml` workflow for pul
 - [x] GKE reconciled + destroyed cleanly: no live cluster, state clean, `gke.tf` kept for reproducibility ($0 compute)
 
 **In progress / planned:**
-- [ ] tfsec evaluation — add only if it catches what Trivy misses (no duplicate signal)
+- [x] tfsec evaluation — evaluated and not added (functionality represented via Trivy config scan; probe verified `GCP-0027` detection, baseline 0 HIGH/CRITICAL)
 - [ ] Grafana — add only if it adds value beyond Cloud Monitoring dashboard
 - [ ] (Later phase, ~1 month out) RAG-based natural-language interface over policy violations and logs, using Ollama + local embeddings
 
@@ -378,7 +378,7 @@ This repository includes a `.github/workflows/policy-check.yml` workflow for pul
 ## Architecture decisions
 
 - **GitHub Actions over Cloud Build** — keeps CI/CD in one familiar, portable system
-- **Trivy for config scanning (tfsec only if additive)** — avoids duplicate signal from two scanners doing the same job
+- **Trivy, not tfsec, for config scanning** — tfsec was evaluated and not added because its functionality is already represented through the project's Trivy configuration scan (upstream tfsec was consolidated into Trivy). A controlled public-SSH probe was caught by Trivy (`GCP-0027`); the clean baseline is 0 HIGH/CRITICAL. Custom OPA policies remain necessary for project-specific controls Trivy doesn't enforce (Workload Identity, labels, machine types, uniform bucket access, versioning, flow logs).
 - **GCP-native Cloud Monitoring (Grafana only if additive)** — over self-hosting Prometheus, reducing operational overhead
 - **Kubernetes Jobs for policy checks** — proves the enforcement mechanism works as a real cluster workload, not just a CI script, closer to how this would run in production
 - **Keep `gke.tf` without running it** — portfolio reviewers see reproducible infra at $0 ongoing cost
