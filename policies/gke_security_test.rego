@@ -32,6 +32,17 @@ test_gke_master_networks_open if {
 	result[_] == "Cluster google_container_cluster.primary must restrict master authorized networks"
 }
 
+test_gke_master_networks_blocks_public_access if {
+	values := object.union(compliant_cluster_values("dev"), {
+		"master_authorized_networks_config": [{
+			"cidr_blocks": [{"cidr_block": "0.0.0.0/0"}],
+		}],
+	})
+	result := deny with input as cluster_plan(values)
+	count(result) == 1
+	result[_] == "Cluster google_container_cluster.primary must not allow 0.0.0.0/0 in master authorized networks"
+}
+
 # --- COS_CONTAINERD image ---
 
 test_gke_cos_container_image if {

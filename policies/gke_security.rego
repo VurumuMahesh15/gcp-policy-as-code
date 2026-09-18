@@ -38,6 +38,17 @@ deny contains msg if {
 
 deny contains msg if {
 	resource := input.planned_values.root_module.resources[_]
+	resource.type == "google_container_cluster"
+
+	cidrs := resource.values.master_authorized_networks_config[0].cidr_blocks
+	some block in cidrs
+	block.cidr_block == "0.0.0.0/0"
+
+	msg := sprintf("Cluster %s must not allow 0.0.0.0/0 in master authorized networks", [resource.address])
+}
+
+deny contains msg if {
+	resource := input.planned_values.root_module.resources[_]
 	resource.type == "google_container_node_pool"
 
 	image := resource.values.node_config[0].image_type
