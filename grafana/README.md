@@ -56,7 +56,7 @@ matches `google_monitoring_alert_policy.high_cpu`.
 
 ```bash
 python3 -m json.tool grafana/dashboards/sre-dashboard.json > /dev/null && echo "dashboard JSON valid"
-python3 -m json.tool grafana/provisioning/datasources/cloud-monitoring.yaml > /dev/null 2>&1 || python3 -c "import yaml,sys" 2>/dev/null || echo "(YAML needs a parser with PyYAML; visual check suffices)"
+# YAML files are simple provisioning docs; review by eye or with `yamllint` if installed.
 ```
 
 ## Connect (when the lab is live)
