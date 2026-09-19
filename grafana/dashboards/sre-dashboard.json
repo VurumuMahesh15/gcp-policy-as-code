@@ -16,7 +16,7 @@
       },
       {
         "name": "cluster",
-        "type": "constant",
+        "type": "textbox",
         "label": "GKE cluster",
         "query": "policy-platform-cluster",
         "current": { "text": "policy-platform-cluster", "value": "policy-platform-cluster" }
@@ -34,7 +34,7 @@
       "id": 2,
       "type": "timeseries",
       "title": "GKE node CPU utilization",
-      "description": "Same signal as the high-CPU alert (kubernetes.io/node/cpu/allocatable_utilization on k8s_node, > 0.8 for 5m). Threshold line marks the alert boundary.",
+      "description": "Same signal as the high-CPU alert (kubernetes.io/node/cpu/allocatable_utilization on k8s_node, > 0.8 for 5m). Scoped by the datasource's GCP project — no cluster filter, because Cloud Monitoring rejects resource.cluster_name on this metric. Threshold line marks the alert boundary.",
       "datasource": { "type": "stackdriver", "uid": "cloud-monitoring" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
       "fieldConfig": {
@@ -56,7 +56,6 @@
           "queryType": "metrics",
           "metricType": "kubernetes.io/node/cpu/allocatable_utilization",
           "metricKind": "GAUGE",
-          "filters": ["resource.cluster_name", "=", "$cluster"],
           "alignmentPeriod": "60s",
           "perSeriesAligner": "ALIGN_MEAN",
           "groupBys": ["resource.node_name"]
@@ -125,7 +124,7 @@
       "id": 7,
       "type": "timeseries",
       "title": "Node CPU over time (wide window)",
-      "description": "Same CPU signal on a longer window to distinguish spikes from trends. Compare against the 0.8 threshold.",
+      "description": "Same CPU signal on a longer window to distinguish spikes from trends. Scoped by the datasource's GCP project (no cluster filter — see the Health row). Compare against the 0.8 threshold.",
       "datasource": { "type": "stackdriver", "uid": "cloud-monitoring" },
       "gridPos": { "h": 8, "w": 16, "x": 0, "y": 18 },
       "fieldConfig": {
@@ -147,7 +146,6 @@
           "queryType": "metrics",
           "metricType": "kubernetes.io/node/cpu/allocatable_utilization",
           "metricKind": "GAUGE",
-          "filters": ["resource.cluster_name", "=", "$cluster"],
           "alignmentPeriod": "300s",
           "perSeriesAligner": "ALIGN_MEAN",
           "groupBys": ["resource.node_name"]

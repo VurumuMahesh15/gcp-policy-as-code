@@ -235,6 +235,14 @@ Remediate → Verify recovery → Document
 
 **Logging note:** the project uses Cloud Logging's default bucket — there is intentionally no custom log sink/bucket resource. Grafana's log panel points at the exact Cloud Logging query to run during incidents.
 
+### Grafana dashboard (portable, credential-free)
+
+The observability layer is provisioned as code and is portable across GCP projects. `grafana/` holds only the dashboard definition and provisioning config — no credentials, keys, or project-specific secrets (verified: none tracked in git).
+
+To use it with your own project: enable Cloud Monitoring, give Grafana read-only access (ADC preferred; a `roles/monitoring.viewer` key works as fallback — never commit it), set `GCP_PROJECT` to your project ID, and start Grafana with the included provisioning. Full steps: [`grafana/README.md`](grafana/README.md).
+
+Note: dashboard ≠ data. With no live GKE workload emitting metrics, panels show **No data** — that means the pipeline has nothing to read, not that the dashboard is broken.
+
 ---
 
 ## Example policy checks
